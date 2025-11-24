@@ -2,45 +2,104 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 import uvicorn
-# Importamos la lógica de análisis del módulo
+import json
+from modules.db import Base, engine
+
+from modules import models
+
+# Importamos la lógica de análisis
 from modules.analisis import analizar_molde, cargar_contorno_ideal
+
+# Importamos CRUD para guardar y listar registros
+from modules.crud import guardar_inspeccion, listar_inspecciones
+
+# ---------------------------------------------------------
+# CONFIG FASTAPI
+# ---------------------------------------------------------
 
 app = FastAPI(
     title="Sistema de Control de Calidad Láser (Simulación)",
-    description="Backend de FastAPI modular para detección de rebaba."
+    description="Backend de FastAPI modular para detección de rebaba y registro de inspecciones."
 )
 
-# --- Evento de Inicio (Carga la plantilla ANTES de que se ejecute la API) ---
+# ---------------------------------------------------------
+# EVENTO DE INICIO: CARGA DE PLANTILLA IDEAL
+# ---------------------------------------------------------
+
 @app.on_event("startup")
 def startup_event():
-    """Intenta cargar el contorno de la plantilla ideal al iniciar el servidor."""
+    """Carga la plantilla ideal y crea la base de datos si no existe."""
+    
+    # Crear tablas de SQLite
+    Base.metadata.create_all(bind=engine)
+    print("✔ Base de datos lista. Tablas creadas.")
+    
+    # Cargar plantilla ideal
     if not cargar_contorno_ideal():
-        # Si falla al cargar la plantilla, se registra el error, pero el servidor puede seguir
-        print("ADVERTENCIA: Falló la carga de la plantilla ideal. La API de inspección no funcionará.")
+        print("⚠ ADVERTENCIA: No se cargó la plantilla ideal. El análisis no funcionará.")
 
-# --- Endpoint para la Historia de Usuario: Detección de Bordes ---
+
+# ---------------------------------------------------------
+# ENDPOINT PRINCIPAL: INSPECCIÓN DE MOLDE
+# ---------------------------------------------------------
+
 @app.post("/api/inspeccionar")
 async def inspeccionar_calidad(file: UploadFile = File(...)):
     """
-    Recibe la imagen del molde cortado y determina si hay rebaba.
-    Llama a la lógica central en el módulo 'analisis'.
+    Recibe la imagen y devuelve si está APROBADA o RECHAZADA.
+    Además guarda el resultado en SQLite.
     """
     try:
-        # Leer el contenido binario del archivo
+        # Leer bytes de la imagen
         imagen_bytes = await file.read()
-        
-        # Llamar a la función de análisis
+
+        # Ejecutar análisis
         resultado = analizar_molde(imagen_bytes)
-        
-        # Manejo de error de dimensiones o decodificación
+
+        # Validación de errores
         if resultado.get("status") == "ERROR":
             raise HTTPException(status_code=400, detail=resultado["mensaje"])
-            
+
+        # Guardar resultado en SQLite
+        guardar_inspeccion(
+            resultado=resultado["status"],
+            max_distancia=resultado["max_distancia"],
+            puntos_defectuosos=resultado["puntos_defectuosos"],
+        )
+
         return JSONResponse(content=resultado)
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ---------------------------------------------------------
+# ENDPOINT: LISTAR TODAS LAS INSPECCIONES
+# ---------------------------------------------------------
+
+@app.get("/api/registros")
+def obtener_registros():
+    """
+    Lista todas las inspecciones guardadas en SQLite.
+    """
+    registros = listar_inspecciones()
+
+    respuesta = []
+    for r in registros:
+        respuesta.append({
+            "id": r.id,
+            "resultado": r.resultado,
+            "max_distancia": r.max_distancia,
+            "puntos_defectuosos": json.loads(r.puntos_defectuosos),
+            "fecha": r.fecha.isoformat()
+        })
+
+    return {"inspecciones": respuesta}
+
+
+# ---------------------------------------------------------
+# EJECUCIÓN MANUAL (opcional)
+# ---------------------------------------------------------
+
 if __name__ == "__main__":
-    # Comando de ejecución manual si no usas uvicorn main:app
     uvicorn.run(app, host="0.0.0.0", port=8000)
