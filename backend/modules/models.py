@@ -1,5 +1,10 @@
+
 # backend/modules/models.py
+<<<<<<< HEAD
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+=======
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+>>>>>>> f1fc54e (Añadido sistema de alertas, SMTP y análisis)
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .db import Base
@@ -31,6 +36,25 @@ class Inspeccion(Base):
 
     fecha = Column(DateTime(timezone=True), default=func.now())
 
+<<<<<<< HEAD
       # 🔗 Relación con Lote (opcional: una inspección puede o no pertenecer a un lote)
     lote_id = Column(Integer, ForeignKey("lotes.id"), nullable=True)
     lote = relationship("Lote", back_populates="inspecciones")
+=======
+
+class Alert(Base):
+    """
+    Modelo para registrar alertas cuando se supera el umbral de defectos.
+    """
+    __tablename__ = "alertas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tipo_alerta = Column(String(50))                    # PORCENTAJE_DEFECTOS
+    porcentaje_defectos = Column(Float)                 # % calculado
+    total_inspecciones = Column(Integer)                # Total analizado
+    total_rechazados = Column(Integer)                  # Cantidad rechazada
+    umbral_configurado = Column(Float)                  # Umbral que se superó
+    recomendacion = Column(Text)                        # Mensaje automático
+    notificacion_enviada = Column(Boolean, default=False)  # Si ya se envió email
+    fecha = Column(DateTime(timezone=True), default=func.now())
+>>>>>>> f1fc54e (Añadido sistema de alertas, SMTP y análisis)
