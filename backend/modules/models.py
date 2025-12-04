@@ -58,3 +58,19 @@ class Alert(Base):
     recomendacion = Column(Text)
     notificacion_enviada = Column(Boolean, default=False)
     fecha = Column(DateTime(timezone=True), default=func.now())
+
+# ==========================================
+# Tabla Reporte Semanal
+# ==========================================
+class ReporteSemanal(Base):
+    __tablename__ = "reportes_semanales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha_inicio = Column(Date)
+    fecha_fin = Column(Date)
+    total_inspecciones = Column(Integer)
+    total_rechazados = Column(Integer)
+    total_aprobados = Column(Integer)
+    porcentaje_defectos = Column(Float)
+    tendencia = Column(Float)  # diferencia vs semana anterior
+    generado_en = Column(DateTime, default=datetime.utcnow)
